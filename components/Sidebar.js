@@ -5,15 +5,22 @@ import MoreVertIcon from '@material-ui/icons/MoreVert';
 import SearchIcon from '@material-ui/icons/Search';
 import { auth, db } from '../firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import { useCollection } from 'react-firebase-hooks/firestore'
 import * as EmailValidator from 'email-validator'
+import Chat from '../components/Chat'
 
 export default function Sidebar() {
   const [user] = useAuthState(auth);
+  const userChatRef = db.collection('chats').where('users', 'array-contains', user.email)
+  const [chatsSnapshot] = useCollection(userChatRef) 
 
   const createChat = () => {
     const input = prompt('Please enter email address for the user you wish to chat with')
-    if(!input) return;
-    if(EmailValidator.validate(input) && input !== user.email) {
+
+    if(!input) return null;
+
+    if(EmailValidator.validate(input) && !chatAlreadyExists(input) && input !== user.email) {
+      // we add the chat into the DB 'chats' collection if it doesn't already exist and is valid
       db.collection('chats').add({
         users: [user.email, input]
       })
@@ -21,13 +28,16 @@ export default function Sidebar() {
   }
 
   const chatAlreadyExists = (recipientEmail) => {
-    
-  }
+    !!chatsSnapshot?.docs.find(
+      (chat) => 
+        chat.data().users.find(user => user === recipientEmail)?.length > 0
+    );
+  };
 
   return (
     <Container>
       <Header>
-        <UserAvatar />
+        <UserAvatar src={user.photoURL}/>
         <IconContainer>
           <IconButton>
             <ChatIcon />
@@ -45,13 +55,26 @@ export default function Sidebar() {
 
       <SidebarButton onClick={createChat}>Start a new chat</SidebarButton>
       {/* list of chats */}
-
+      {chatsSnapshot?.docs.map(chat => (
+        <Chat key={chat.id} id={chat.id} users={chat.data().users} />
+      ))}
     </Container>
   )
 } 
 
 const Container = styled.div`
+  flex: 0.45;
+  border-right: 1px solid whitesmoke;
+  height: 100vh;
+  min-width: 300px;
+  max-width: 350px;
+  overflow-y: scroll;
 
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none; /* IE and edge */
+  scrollbar-width: none; /* firefox */
 `
 
 const Search = styled.div`
